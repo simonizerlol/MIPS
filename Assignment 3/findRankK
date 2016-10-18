@@ -1,0 +1,151 @@
+# Name: Simon Hsu #Id: 260610820
+# COMP273 A3
+.text
+findRankK:  
+#	$a0 the value k
+#   	$a1 the starting address of the array L
+#   	$a2 the size of the list, i.e. | L |
+#	$v0 returning value
+#	s0  length of the newList
+
+#intialize variables and check the base case
+ 	addi 	$sp, $sp, -16 # allocate space on stack
+ 	sw	$ra,12($sp)
+ 	sw	$a0,8($sp)
+ 	sw	$a1,4($sp)
+ 	sw	$a2,($sp)
+ 	
+ 	mul 	$t1,$a2,4 # multiplies length of list by 4
+ 	add	$t2, $t1, $a1 # starting address of partition list
+ 	
+ 	li	$t3, 1	#t1 is i
+	li 	$t4, 0	#t2 is low
+	beq	$t3,$a2,sizeOne #check if the size is one
+	sub	$t5,$a2,1	#t5 is high, len-1
+	lw	$t6,($a1)	#t6 is the pivot
+	
+while1:
+# while i is less than len do this
+#Copy elements from list into the buffer, making L1, L2, L3.
+#Elements smaller than the pivot go in the low part of the buffer.
+#Elements larger than the pivot go in the high part of the buffer.
+#Fill space in between with L2 (pivot). 
+	beq 	$t3,$a2,endWhile1 
+	mul 	$t1,$t3,4	#multiplies counter i by 4
+	add	$t1,$t1,$a1	#loads address of List[i] into $t1
+	lw	$t0,($t1)	#takes value at index List[i]
+	
+	blt	$t0,$t6,if	# if list[i] < pivot
+	blt	$t6,$t0,elseif #If pivot < list[i]
+	j	incWhile1
+	
+if:	
+	mul	$t7,$t4,4	#multiplies low by 4
+	add	$t7,$t2,$t7	#load address partitionedlist[low] into $t7
+	
+	sw	$t0,($t7)	#PL[low] = list[i]
+	addi	$t4,$t4,1	#low++
+	j 	incWhile1
+			
+elseif:
+	mul	$t7,$t5,4	#multiplies high by 4
+	add	$t7,$t2,$t7	#load address partitionedlist[high] into $t7
+	
+	sw	$t0,($t7)	#PL[high] = list[i]
+	addi	$t5,$t5,-1	#high--
+	j 	incWhile1
+incWhile1:	
+	addi 	$t3,$t3,1	#i++
+	j 	while1
+endWhile1:	
+	add  	$t3,$t4, 0 #i=low
+	j 	while2
+	
+while2:
+	bgt	$t3,$t5, endWhile2
+	mul	$t7,$t3,4	#multiplies counter i by 4
+	add	$t7,$t2,$t7	#load address partitionedlist[i] into $t2
+	
+	sw	$t6,($t7)	#partitionedList[i] = pivot
+	addi 	$t3,$t3,1	#i++
+	j 	while2
+	
+endWhile2:
+#The partitionedList array will have L1,L2,L3 in [0,low-1],[low,high], [high+1,len-1]
+#Now make a new list to be used for the recursion.
+#In the MIPS code, we will use the original array space to hold this list.
+# if k < low, do case1. Else if k <= high, do case2. Else do case 3
+
+	blt	$a0,$t4, case1 #if k < low 
+	ble	$a0,$t5, case2 #if k <= high 
+	j	case3	   #else
+case1:
+	li	$t3,0 #i = 0
+			
+for1:
+# while i < low
+	beq	$t3,$t4,endCase1 
+	mul	$t7,$t3,4	#multiply counter +1 by 4
+	add	$t1,$a1,$t7	#address pointer for newList 
+	add	$t7,$t2,$t7	#address pointer for partitioned list
+	#newList[i] = partitionedList[i]
+	lw	$t0,($t7)	#loads value from partitioned list
+	sw	$t0,($t1)	#saves value into newList list
+	addi 	$t3,$t3,1	#i++
+	j 	for1
+endCase1:
+#return findRankK(k, newlist) recursively
+	add 	$a2, $t3, 0	#change a2 to newList length
+	jal 	findRankK	#jump and link to findRankK (recursive)
+
+	lw 	$ra, 12($sp)#load the return address
+	lw 	$a0, 8($sp)	#load n
+	lw 	$a1, 4($sp)
+	lw 	$a2, 0($sp)
+	addi 	$sp, $sp, 16 #cchange the stack pointer		
+	j 	end
+case2:
+# else if k <= high
+	lw 	$v0, ($a1)	#return pivot
+	j 	end
+
+case3:
+#else
+	addi	$t3,$t5,1	#i = high + 1
+for2:
+#while i < len
+	beq	$t3,$a2,endCase3 #if counter = length then exit
+	add	$t1,$t3,$a2	#add high +1 and len
+	mul	$t1,$t1,4	#multiply high + 1 + len by 4
+	add	$t7,$a1,$t1	#pointer to partitioned list	
+	mul	$t0,$t3,4	#multiply counter by 4
+	add	$t0,$a1,$t0	#pointer to newList list
+	#newList[i-(high+1)] = partitionedList[i]
+	lw	$t1,($t7)	#loads value from partitioned list
+	sw	$t1,($t0)	#saves value into newList list
+	addi	$t3,$t3,1	#i++
+	j	for2
+			
+endCase3:
+#return findRankK(k - (high+1), newlist);
+	sub 	$a0,$a0,$t5	#k = k-(high+1)
+	addi	$a0,$a0,-1	
+	
+	addi	$t3,$t5,1	#t3 = high +1
+	mul	$t3,$t3,4	#multiply by 4
+	add	$a1,$a1,$t3	#updates base address of newList list
+	
+	sub	$a2,$a2,$t5	#[len-(high+1)]
+	addi	$a2,$a2,-1	
+	jal 	findRankK           
+
+	lw 	$ra, 12($sp)#load return address
+	lw 	$a0, 8($sp) #load n      
+	lw 	$a1, 4($sp)
+	lw 	$a2, 0($sp)
+	addi 	$sp, $sp, 16     # change the stack pointer	
+	j 	end
+sizeOne:
+	lw 	$v0, ($a1)
+end:
+	jr 	$ra
